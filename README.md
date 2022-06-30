@@ -385,31 +385,6 @@ Libvirt IPI is not included in the installer software by default. In order to "a
 
 This is important...wait just for a moment and think about it... you can do all of this because **IT IS OPEN SOURCE**. It would be impossible if we were using close-source Software...
 
-
-#### Custom disk size in OpenShift nodes
-
-///////////////////////////
-
-NOTE: Since OpenShift 4.5 this is not needed anymore. I commented out the part that makes these changes in the source code, if you want to keep using older openshift versions you will have to re-enable that part of the playbook.
-
-///////////////////////////
-
-All (supported) IPI providers have a way to modify the created VM resources (CPU, memory and disk). In the libvirt IPI case you can modify the CPU and memory using the manifest (see below) just changing the values that are already there. [In order to change the worker nodes disk size you have to include an additional variable that is not in the manifest by default](https://github.com/openshift/installer/issues/2338), but it works. The problem [is that the code is not (yet?) prepared to allow master nodes disk size changes](https://github.com/openshift/cluster-api-provider-libvirt/pull/175) so the only way to do it is by [adding the 'size' variable](https://github.com/openshift/installer/pull/2652/commits/5e46b881675cda0613233574b0b70531b4a82a31) in the code in file `data/data/libvirt/main.tf` including the size in bytes.
-
-```
-...
-resource "libvirt_volume" "master" {
-  size           = < size >
-  count          = var.master_count
-  name           = "${var.cluster_id}-master-${count.index}"
-  base_volume_id = module.volume.coreos_base_volume_id
-  pool           = libvirt_pool.storage_pool.name
-}
-...
-```
-
-The reason why masters are not that flexible is that for LABs, with the default disk size you are good to go....but maybe there is one use case where you want to increase the disk size, and that's when you want to run an All-in-One setup (this is allowed in my playbooks) because the master will need to run the workloads as well (even more important if you don't have configured any storage backend to have PVs).
-
 #### Change "local_only" parameter of created libvirt networks
 
 One more thing to be taken into account is that [due an issue with libvirt and the need of a wildcard for the console](https://github.com/openshift/installer/issues/1007) we need to either forward requests for the APPS URL to the KVM dnsmasq in the openshift-installer code (so we skip the limitation on the libvirt dnsmasq) or, if we don't want to modify (more) the code we could configure a different (from default) APPS URL. We would configure *.apps.< basedomain > instead of *.apps.< CLUSTERNAME >.< basedomain >, in order to let the openshift console being deploy, so bear in mind that change and do not include the cluster name when trying to access your APPs in this cluster. This change should be also done in the manifests, in this case by removing the "cluster name" part (probably `ocp` if you didn't change it in the `install-config.yaml`) from the url that appears in the `manifests/cluster-ingress-02-config.yml` file.
@@ -429,7 +404,7 @@ There different timers:
 
 ### Custom RAM and CPU in OpenShift VMs (and custom size in Worker nodes)
 
-We already review that we could need to change the default disk size (only 16GB) reserved for our OpenShift nodes created by libvirt IPI. Masters can only be changed fixing the size in code. For workers a variable can be added in the manifests, so first we have to create the manifests (`openshift-installer create manifests --dir <installation dir>`) and then modify the `openshift/99_openshift-cluster-api_worker-machineset-0.yaml` file, adding the `volumeSize` with the disk size in bytes
+A variable can be added in the manifests, so first we have to create the manifests (`openshift-installer create manifests --dir <installation dir>`) and then modify the `openshift/99_openshift-cluster-api_worker-machineset-0.yaml` and `openshift/99_openshift-cluster-api_master*` files, adding the `volumeSize` with the disk size in bytes.
 
 
 ```
